@@ -2648,6 +2648,38 @@ pub const Repository = opaque {
         return ret;
     }
 
+    /// Create a new iterator over the repository's references
+    pub fn referenceIteratorNew(self: *Repository) !*git.ReferenceIterator {
+        if (internal.trace_log) log.debug("Repository.referenceIteratorNew called", .{});
+
+        var iter: *git.ReferenceIterator = undefined;
+
+        try internal.wrapCall("git_reference_iterator_new", .{
+            @ptrCast(*?*c.git_reference_iterator, &iter),
+            @ptrCast(*c.git_repository, self),
+        });
+
+        return iter;
+    }
+
+    /// Create a new iterator over the repository's references matching a glob.
+    ///
+    /// ## Parameters
+    /// * `glob` - The glob for references to match.
+    pub fn referenceIteratorNewGlob(self: *Repository, glob: [:0]const u8) !*git.ReferenceIterator {
+        if (internal.trace_log) log.debug("Repository.referenceIteratorNewGlob called", .{});
+
+        var iter: *git.ReferenceIterator = undefined;
+
+        try internal.wrapCall("git_reference_iterator_glob_new", .{
+            @ptrCast(*?*c.git_reference_iterator, &iter),
+            @ptrCast(*c.git_repository, self),
+            glob.ptr,
+        });
+
+        return iter;
+    }
+
     /// Add a remote with the default fetch refspec to the repository's configuration.
     ///
     /// ## Parameters

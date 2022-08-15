@@ -12,6 +12,30 @@ pub const Reference = opaque {
         c.git_reference_free(@ptrCast(*c.git_reference, self));
     }
 
+    /// Delete the reference.
+    ///
+    /// Note that if the deletion succeeds, the reference will not be valid anymore, and should be freed immediately by the user
+    /// using `deinit`.
+    pub fn delete(self: *Reference) !void {
+        if (internal.trace_log) log.debug("Reference.delete called", .{});
+
+        return internal.wrapCall("git_reference_delete", .{@ptrCast(*c.git_reference, self)});
+    }
+
+    /// Return the name of the reference
+    pub fn nameGet(self: *Reference) ![:0]const u8 {
+        if (internal.trace_log) log.debug("Reference.nameGet called", .{});
+
+        return std.mem.sliceTo(c.git_reference_name(@ptrCast(*const c.git_reference, self)), 0);
+    }
+
+    /// Return the target OID of the reference, or null if none (e.g. if the reference is symbolic)
+    pub fn targetGet(self: *const Reference) ?*const git.Oid {
+        if (internal.trace_log) log.debug("Reference.targetGet", .{});
+
+        return @ptrCast(?*const git.Oid, c.git_reference_target(@ptrCast(*const c.git_reference, self)));
+    }
+
     /// Delete an existing branch reference.
     ///
     /// Note that if the deletion succeeds, the reference will not be valid anymore, and should be freed immediately by the user
@@ -57,8 +81,12 @@ pub const Reference = opaque {
         return ref;
     }
 
-    pub fn nameGet(self: *Reference) ![:0]const u8 {
-        if (internal.trace_log) log.debug("Reference.nameGet called", .{});
+    /// Return the name of the branch.
+    ///
+    /// This is only meaningful if this reference is a local or remote branch, and returns an error
+    /// otherwise.
+    pub fn branchNameGet(self: *Reference) ![:0]const u8 {
+        if (internal.trace_log) log.debug("Reference.branchNameGet called", .{});
 
         var name: ?[*:0]const u8 = undefined;
 
@@ -96,6 +124,52 @@ pub const Reference = opaque {
         if (internal.trace_log) log.debug("Reference.isCheckedOut", .{});
 
         return (try internal.wrapCallWithReturn("git_branch_is_checked_out", .{@ptrCast(*const c.git_reference, self)})) == 1;
+    }
+
+    comptime {
+        std.testing.refAllDecls(@This());
+    }
+};
+
+pub const ReferenceIterator = opaque {
+    /// Return the current item and advance the iterator internally to the next value
+    pub fn next(self: *ReferenceIterator) !?*Reference {
+        if (internal.trace_log) log.debug("ReferenceIterator.next called", .{});
+
+        var reference: *git.Reference = undefined;
+
+        internal.wrapCall("git_reference_next", .{
+            @ptrCast(*?*c.git_reference, &reference),
+            @ptrCast(*c.git_reference_iterator, self),
+        }) catch |err| switch (err) {
+            git.GitError.IterOver => return null,
+            else => |e| return e,
+        };
+
+        return reference;
+    }
+
+    /// Return the current reference name and advance the iterator internally to the next value
+    pub fn nextName(self: *ReferenceIterator) !?[:0]const u8 {
+        if (internal.trace_log) log.debug("ReferenceIterator.nextName called", .{});
+
+        var name: [*:0]const u8 = undefined;
+
+        internal.wrapCall("git_reference_next_name", .{
+            &name,
+            @ptrCast(*c.git_reference_iterator, self),
+        }) catch |err| switch (err) {
+            git.GitError.IterOver => return null,
+            else => |e| return e,
+        };
+
+        return std.mem.sliceTo(name, 0);
+    }
+
+    pub fn deinit(self: *ReferenceIterator) void {
+        if (internal.trace_log) log.debug("ReferenceIterator.deinit called", .{});
+
+        c.git_reference_iterator_free(@ptrCast(*c.git_reference_iterator, self));
     }
 
     comptime {
